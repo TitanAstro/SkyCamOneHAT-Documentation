@@ -1,0 +1,90 @@
+(Basis taken from https://github.com/raspberrypi/documentation/blob/develop/documentation/asciidoc/computers/raspberry-pi/boot-nvme.adoc)
+
+== NVMe SSD boot
+
+NVMe (Non-Volatile Memory express) is a standard for external storage access over a PCIe bus. You can connect NVMe drives on the Raspberry Pi 5 using a SkyCamOne HAT. With some additional configuration, you can boot from an NVMe drive.
+
+=== Prerequisites
+
+==== Hardware
+
+* NVMe M.2 SSD
+* SkyCamOne HAT for Raspberry Pi 5
+
+To check that your NVMe drive is connected correctly, boot your Raspberry Pi from another storage device (such as an SD card) and run `ls -l /dev/nvme*`. Example output is shown below.
+
+----
+crw------- 1 root root 245, 0 Mar  9 14:58 /dev/nvme0
+brw-rw---- 1 root disk 259, 0 Mar  9 14:58 /dev/nvme0n1
+----
+
+==== Software
+
+First, ensure that your Raspberry Pi runs the latest software. Run the following command to update:
+
+[source,console]
+----
+$ sudo apt update && sudo apt full-upgrade
+----
+
+=== Edit the bootloader boot priority
+
+Use the Raspberry Pi Configuration CLI to update the bootloader:
+
+[source,console]
+----
+$ sudo raspi-config
+----
+
+Under `Advanced Options` > `Bootloader Order`, specify that the bootloader should attempt to boot from `NVMe` first:
+
+[source,console]
+----
+$ sudo rpi-eeprom-update -a
+----
+
+Then, reboot with `sudo reboot`. Your Raspberry Pi should boot from NVMe.
+
+=== NVMe `BOOT_ORDER`
+
+The `BOOT_ORDER` setting in EEPROM configuration controls boot behaviour.
+For NVMe boot, use boot mode `6`. For more information, see xref:raspberry-pi.adoc#raspberry-pi-bootloader-configuration[Raspberry Pi bootloader configuration].
+
+=== Example
+
+Below is an example of UART output when the bootloader detects the NVMe drive:
+
+----
+Boot mode: SD (01) order f64
+Boot mode: USB-MSD (04) order f6
+Boot mode: NVME (06) order f
+VID 0x144d MN Samsung SSD 970 EVO Plus 250GB
+NVME on
+----
+
+It will then find a FAT partition and load `start4.elf`:
+
+----
+Read start4.elf bytes  2937840 hnd 0x00050287 hash ''
+----
+
+It will then load the kernel and boot the OS:
+
+----
+MESS:00:00:07.096119:0: brfs: File read: /mfs/sd/kernel8.img
+MESS:00:00:07.098682:0: Loading 'kernel8.img' to 0x80000 size 0x1441a00
+MESS:00:00:07.146055:0:[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x410fd083]
+----
+
+In Linux the SSD appears as `/dev/nvme0` and the "namespace" as `/dev/nvme0n1`. There will be two partitions `/dev/nvme0n1p1` (FAT) and `/dev/nvme0n1p2` (EXT4). Use `lsblk` to check the partition assignments:
+
+----
+NAME        MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT
+nvme0n1     259:0    0 232.9G  0 disk
+├─nvme0n1p1 259:1    0   256M  0 part /boot/firmware
+└─nvme0n1p2 259:2    0 232.6G  0 part /
+----
+
+== Loading Raspberry Pi OS on your NVMe
+
+You can install Raspberry Pi OS on your NVMe drive using an USB NVMe adapter and https://www.raspberrypi.com/software/[Raspberry Pi Imager]
